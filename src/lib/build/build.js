@@ -220,6 +220,12 @@ async function recordMetaData(baseDir, functions, tplPath, metaPath, buildOps) {
 
 async function buildFunction(buildName, tpl, baseDir, useDocker, useBuildkit, stages, verbose, tplPath, assumeYes) {
   const buildStage = _.includes(stages, 'build');
+  const escapeDockerArgsInBuildFC = +process.env.escapeDockerArgsInBuildFC;
+  if (useDocker && escapeDockerArgsInBuildFC) {
+    debug(`escape useDocker arg when building function`);
+    useDocker = false;
+    useBuildkit = true;
+  }
 
   if (useDocker) {
     console.log(green(`start ${buildStage ? 'building' : 'installing'} functions using docker`));
@@ -294,11 +300,16 @@ async function buildFunction(buildName, tpl, baseDir, useDocker, useBuildkit, st
 
     let imageTag;
 
-    // convert Funfile to dockerfile if Funfile exist
-    if (funfilePath && useBuildkit) {
-      await processFunfileForBuildkit(serviceName, serviceRes, absCodeUri, funfilePath, baseDir, funcArtifactDir, runtime, functionName);
-    } else if (funfilePath) {
-      imageTag = await processFunfile(serviceName, serviceRes, absCodeUri, funfilePath, baseDir, funcArtifactDir, runtime, functionName);
+    // if Funfile exist,use docker or buildkit.
+    if (funfilePath) {
+      if (useBuildkit || escapeDockerArgsInBuildFC) {
+        await processFunfileForBuildkit(serviceName, serviceRes, absCodeUri, funfilePath, baseDir, funcArtifactDir, runtime, functionName);
+        useDocker = false;
+        useBuildkit = true;
+      } else {  // force docker if funfilePath exist and escapeDockerArgsInBuildFC not exist
+        imageTag = await processFunfile(serviceName, serviceRes, absCodeUri, funfilePath, baseDir, funcArtifactDir, runtime, functionName);
+        useDocker = true;
+      }
     }
     // For build stage, Fun needn't compile functions only if there are no manifest file and no Funfile.
     // For install stage, Fun needn't compile functions only if there are no manifest file.
@@ -313,7 +324,7 @@ async function buildFunction(buildName, tpl, baseDir, useDocker, useBuildkit, st
 
     if (useBuildkit) {
       await builder.buildInBuildkit(serviceName, serviceRes, functionName, functionRes, baseDir, absCodeUri, funcArtifactDir, verbose, stages);
-    } else if (useDocker || funfilePath) { // force docker if funfilePath exist
+    } else if (useDocker) {
       await builder.buildInDocker(serviceName, serviceRes, functionName, functionRes, baseDir, absCodeUri, funcArtifactDir, verbose, imageTag, stages);
     } else {
       await builder.buildInProcess(serviceName, functionName, absCodeUri, runtime, funcArtifactDir, verbose, stages);
