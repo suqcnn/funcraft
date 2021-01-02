@@ -221,7 +221,12 @@ async function recordMetaData(baseDir, functions, tplPath, metaPath, buildOps) {
 async function buildFunction(buildName, tpl, baseDir, useDocker, useBuildkit, stages, verbose, tplPath, assumeYes) {
   const buildStage = _.includes(stages, 'build');
   const escapeDockerArgsInBuildFC = +process.env.escapeDockerArgsInBuildFC;
-  if (useDocker && escapeDockerArgsInBuildFC) {
+  const setBuildkitArgsDefaultInBuildFC = +process.env.setBuildkitArgsDefaultInBuildFC;
+  if (setBuildkitArgsDefaultInBuildFC) {
+    debug(`set useBuildkit arg default when building function`);
+    useDocker = false;
+    useBuildkit = true;
+  } else if (useDocker && escapeDockerArgsInBuildFC) {
     debug(`escape useDocker arg when building function`);
     useDocker = false;
     useBuildkit = true;
